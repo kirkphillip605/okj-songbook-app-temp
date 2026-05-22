@@ -1,0 +1,18 @@
+{
+  "cwd": "/Users/phillipkirk/Projects/okj-songbook-app-temp",
+  "type": [
+    "web"
+  ],
+  "name": "OKJ Songbook",
+  "framework": "react",
+  "template": "blank",
+  "cssPreProcessor": "scss",
+  "bundler": "vite",
+  "theming": {
+    "customColor": true,
+    "color": "#1a1c24",
+    "darkMode": false,
+    "iconFonts": true
+  },
+  "customBuild": false
+}

@@ -1,0 +1,44 @@
+{
+  "name": "okj-songbook",
+  "private": true,
+  "version": "1.0.0",
+  "description": "OKJ Songbook",
+  "repository": "",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "npm run dev",
+    "dev": "cross-env NODE_ENV=development vite",
+    "build": "cross-env NODE_ENV=production vite build",
+    "postinstall": "cpy --flat ./node_modules/framework7-icons/fonts/*.* ./src/fonts/ && cpy --flat ./node_modules/material-icons/iconfont/*.* ./src/fonts/"
+  },
+  "browserslist": [
+    "IOS >= 15",
+    "Safari >= 15",
+    "last 5 Chrome versions",
+    "last 5 Firefox versions"
+  ],
+  "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4",
+    "dom7": "^4.0.6",
+    "framework7": "^9.0.4",
+    "framework7-icons": "^5.0.5",
+    "framework7-react": "^9.0.4",
+    "material-icons": "^1.13.14",
+    "prop-types": "^15.8.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "skeleton-elements": "^4.0.1",
+    "swiper": "^12.1.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "cpy-cli": "^7.0.0",
+    "cross-env": "^10.1.0",
+    "postcss-preset-env": "^11.3.0",
+    "sass": "^1.100.0",
+    "vite": "^8.0.14"
+  }
+}
