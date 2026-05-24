@@ -14,11 +14,12 @@ const PERF_TYPES = [
  *   onClose  – callback when popover is closed
  *   onSelect – (typeKey) => void called when a type is chosen
  */
-export default function PerformanceTypePopover({ opened, onClose, onSelect }) {
+export default function PerformanceTypePopover({ opened, onClose, onSelect, targetEl }) {
   return (
     <Popover
       opened={opened}
       onPopoverClosed={onClose}
+      targetEl={targetEl}
       className="performance-type-popover"
     >
       <List>

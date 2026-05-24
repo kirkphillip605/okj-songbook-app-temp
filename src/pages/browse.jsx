@@ -1,16 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import {
   Page,
-  Navbar,
-  NavTitle,
   Preloader,
 } from 'framework7-react';
 import { useStore } from 'framework7-react';
 import { browseSongs } from '../js/api';
 import store from '../js/store';
 import SongList from '../components/SongList.jsx';
-import PerformanceTypePopover from '../components/PerformanceTypePopover.jsx';
-import RequestPopup from '../components/RequestPopup.jsx';
+import VibeNavbar from '../components/VibeNavbar.jsx';
 
 const LETTERS = [
   '#', '@',
@@ -25,11 +22,6 @@ const BrowsePage = () => {
   const browseCount = useStore('browseCount');
   const browseLoading = useStore('browseLoading');
   const activeLetter = useStore('activeLetter');
-
-  const [selectedSong, setSelectedSong] = useState(null);
-  const [popoverOpen, setPopoverOpen] = useState(false);
-  const [popupOpen, setPopupOpen] = useState(false);
-  const [perfType, setPerfType] = useState('solo');
 
   const handleLetterTap = useCallback(async (letter) => {
     if (!venueUrlName) return;
@@ -52,25 +44,16 @@ const BrowsePage = () => {
     }
   }, [venueUrlName, activeLetter, browseResults.length]);
 
-  // User taps a song – open popover to pick performance type
   const handleSongTap = (song) => {
-    setSelectedSong(song);
-    setPerfType('solo'); // default
-    setPopoverOpen(true);
-  };
-
-  // Called from popover when a type is chosen
-  const handlePerfSelect = (type) => {
-    setPerfType(type);
-    setPopoverOpen(false);
-    setPopupOpen(true);
+    store.dispatch('openRequestSheet', song);
   };
 
   return (
-    <Page name="browse" className="browse-page">
-      <Navbar>
-        <NavTitle>Browse</NavTitle>
-      </Navbar>
+    <Page
+      name="browse"
+      className="browse-page"
+    >
+      <VibeNavbar />
 
       {/* Page Header */}
       <div className="page-header">
@@ -136,21 +119,6 @@ const BrowsePage = () => {
           </div>
         </div>
       )}
-
-      {/* Popover for performance type selection */}
-      <PerformanceTypePopover
-        opened={popoverOpen}
-        onClose={() => setPopoverOpen(false)}
-        onSelect={handlePerfSelect}
-      />
-
-      {/* Request popup (solo / duet / group) */}
-      <RequestPopup
-        opened={popupOpen}
-        onClose={() => setPopupOpen(false)}
-        song={selectedSong}
-        perfType={perfType}
-      />
     </Page>
   );
 };

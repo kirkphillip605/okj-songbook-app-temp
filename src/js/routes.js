@@ -1,11 +1,17 @@
 import SearchPage from '../pages/search.jsx';
 import BrowsePage from '../pages/browse.jsx';
-import SettingsPage from '../pages/settings.jsx';
+import FavoritesPage from '../pages/favorites.jsx';
+import ShowsPage from '../pages/shows.jsx';
+import LivePage from '../pages/live.jsx';
 
 const routes = [
   {
     path: '/',
-    redirect: '/search/',
+    redirect: '/shows/',
+  },
+  {
+    path: '/shows/',
+    component: ShowsPage,
   },
   {
     path: '/search/',
@@ -16,8 +22,12 @@ const routes = [
     component: BrowsePage,
   },
   {
-    path: '/settings/',
-    component: SettingsPage,
+    path: '/favorites/',
+    component: FavoritesPage,
+  },
+  {
+    path: '/live/',
+    component: LivePage,
   },
 ];
 

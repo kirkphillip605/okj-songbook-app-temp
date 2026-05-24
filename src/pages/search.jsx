@@ -1,26 +1,24 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   Page,
-  Navbar,
-  NavTitle,
   Preloader,
+  f7,
 } from 'framework7-react';
 import { useStore } from 'framework7-react';
 import { searchSongs } from '../js/api';
 import store from '../js/store';
 import SongList from '../components/SongList.jsx';
-import RequestSheet from '../components/RequestSheet.jsx';
+import VibeNavbar from '../components/VibeNavbar.jsx';
 
 const SearchPage = () => {
   const venueUrlName = useStore('venueUrlName');
+  const checkedInVenue = useStore('checkedInVenue');
   const searchResults = useStore('searchResults');
   const searchCount = useStore('searchCount');
   const searchLoading = useStore('searchLoading');
   const searchQuery = useStore('searchQuery');
 
   const [inputValue, setInputValue] = useState('');
-  const [selectedSong, setSelectedSong] = useState(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const debounceRef = useRef(null);
 
   const handleSearch = useCallback((value) => {
@@ -57,17 +55,15 @@ const SearchPage = () => {
   };
 
   const handleSongTap = (song) => {
-    setSelectedSong(song);
-    setSheetOpen(true);
+    store.dispatch('openRequestSheet', song);
   };
 
-
-
   return (
-    <Page name="search" className="search-page">
-      <Navbar>
-        <NavTitle>Search</NavTitle>
-      </Navbar>
+    <Page
+      name="search"
+      className="search-page"
+    >
+      <VibeNavbar />
 
       {/* Page Header */}
       <div className="page-header">
@@ -77,7 +73,7 @@ const SearchPage = () => {
 
       {/* Search Bar */}
       <div className="vibe-searchbar-wrap">
-        <div className="vibe-searchbar">
+        <div className={`vibe-searchbar ${!checkedInVenue ? 'disabled' : ''}`}>
           <i className="f7-icons search-icon">search</i>
           <input
             type="text"
@@ -85,6 +81,7 @@ const SearchPage = () => {
             value={inputValue}
             onChange={(e) => handleSearch(e.target.value)}
             id="search-input"
+            disabled={!checkedInVenue}
           />
           <span
             className={`clear-btn f7-icons ${inputValue ? 'visible' : ''}`}
@@ -95,60 +92,76 @@ const SearchPage = () => {
         </div>
       </div>
 
-      {/* Loading */}
-      {searchLoading && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
-          <Preloader />
-        </div>
-      )}
-
-      {/* Results Header */}
-      {!searchLoading && searchQuery && (
-        <div className="results-header">
-          <span className="results-label">Results for "{searchQuery}"</span>
-          <span className="results-count">{searchCount} songs</span>
-        </div>
-      )}
-
-      {/* Song Results */}
-      {!searchLoading && searchResults.length > 0 && (
-        <SongList songs={searchResults} onSongTap={handleSongTap} />
-      )}
-
-      {/* Empty state: no results */}
-      {!searchLoading && searchQuery && searchResults.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-icon">
-            <i className="f7-icons">music_note</i>
+      {/* Check-In Required Warning Card */}
+      {!checkedInVenue ? (
+        <div className="search-checkin-required-card">
+          <div className="card-icon-wrap">
+            <i className="f7-icons">exclamationmark_shield_fill</i>
           </div>
-          <div className="empty-state-title">No songs found</div>
-          <div className="empty-state-text">
-            Try a different search term or check your spelling.
+          <div className="card-title">Check-In Required</div>
+          <div className="card-description">
+            You must check in to a show before you can search the songbook or submit song requests.
           </div>
+          <button
+            className="go-to-shows-btn"
+            onClick={() => f7.tab.show('#view-shows')}
+          >
+            <i className="f7-icons">placemark_fill</i>
+            Find Nearby Shows
+          </button>
         </div>
-      )}
+      ) : (
+        <>
+          {/* Loading */}
+          {searchLoading && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+              <Preloader />
+            </div>
+          )}
 
-      {/* Empty state: no query */}
-      {!searchLoading && !searchQuery && (
-        <div className="empty-state">
-          <div className="empty-state-icon">
-            <i className="f7-icons">search</i>
-          </div>
-          <div className="empty-state-title">Start searching</div>
-          <div className="empty-state-text">
-            Type a song title or artist name to find tracks.
-          </div>
-        </div>
-      )}
+          {/* Results Header */}
+          {!searchLoading && searchQuery && (
+            <div className="results-header">
+              <span className="results-label">Results for "{searchQuery}"</span>
+              <span className="results-count">{searchCount} songs</span>
+            </div>
+          )}
 
-      {/* Request Sheet */}
-      <RequestSheet
-        opened={sheetOpen}
-        song={selectedSong}
-        onClose={() => setSheetOpen(false)}
-      />
+          {/* Song Results */}
+          {!searchLoading && searchResults.length > 0 && (
+            <SongList songs={searchResults} onSongTap={handleSongTap} />
+          )}
+
+          {/* Empty state: no results */}
+          {!searchLoading && searchQuery && searchResults.length === 0 && (
+            <div className="empty-state">
+              <div className="empty-state-icon">
+                <i className="f7-icons">music_note</i>
+              </div>
+              <div className="empty-state-title">No songs found</div>
+              <div className="empty-state-text">
+                Try a different search term or check your spelling.
+              </div>
+            </div>
+          )}
+
+          {/* Empty state: no query */}
+          {!searchLoading && !searchQuery && (
+            <div className="empty-state">
+              <div className="empty-state-icon">
+                <i className="f7-icons">search</i>
+              </div>
+              <div className="empty-state-title">Start searching</div>
+              <div className="empty-state-text">
+                Type a song title or artist name to find tracks.
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </Page>
   );
 };
 
 export default SearchPage;
+

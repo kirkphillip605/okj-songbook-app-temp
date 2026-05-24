@@ -87,3 +87,33 @@ export async function submitRequest(venueUrlName, songId, singerName, keyChange)
     error: data.error,
   };
 }
+
+/**
+ * Get nearby venues based on coordinates and range.
+ * @param {number} latitude
+ * @param {number} longitude
+ * @param {number} range - Distance range in miles
+ * @returns {Promise<Array<{venueId: string, name: string, distance: number, accepting: boolean}>>}
+ */
+export async function getNearbyVenues(latitude, longitude, range = 15) {
+  const data = await apiRequest({
+    command: 'getNearbyVenues2',
+    range: Number(range),
+    latitude: Number(latitude),
+    longitude: Number(longitude),
+  });
+  return data.nearby || [];
+}
+
+/**
+ * Check if a venue exists by its venueUrlName.
+ * @param {string} venueUrlName
+ * @returns {Promise<{command: string, error: string, exists: boolean}>}
+ */
+export async function checkVenueExists(venueUrlName) {
+  return await apiRequest({
+    command: 'venueExists',
+    venueUrlName,
+  });
+}
+

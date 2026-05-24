@@ -2,22 +2,19 @@ import React, { useState, useEffect } from 'react';
 import {
   Sheet,
   Preloader,
+  Segmented,
+  Button,
+  Stepper,
   f7,
 } from 'framework7-react';
 import { useStore } from 'framework7-react';
 import { submitRequest } from '../js/api';
 import store from '../js/store';
 
-const PERF_TYPES = [
-  { key: 'solo', label: 'Solo', icon: 'person_fill' },
-  { key: 'duet', label: 'Duet', icon: 'person_2_fill' },
-  { key: 'group', label: 'Group', icon: 'person_3_fill' },
-];
-
 /**
  * Build the final singer name string from the performance type and inputs.
  */
-function buildSingerName(perfType, soloName, duetNames, groupMode, groupName, groupMembers) {
+function buildSingerName(perfType, soloName, duetNames, groupMembers) {
   if (perfType === 'solo') {
     return soloName.trim();
   }
@@ -28,10 +25,6 @@ function buildSingerName(perfType, soloName, duetNames, groupMode, groupName, gr
     return a || b;
   }
   if (perfType === 'group') {
-    if (groupMode === 'name') {
-      return groupName.trim();
-    }
-    // Individual members
     const names = groupMembers.map((n) => n.trim()).filter(Boolean);
     if (names.length === 0) return '';
     if (names.length === 1) return names[0];
@@ -54,17 +47,14 @@ const RequestSheet = ({ opened, song, onClose }) => {
   // Duet
   const [duetNames, setDuetNames] = useState(['', '']);
 
-  // Group
-  const [groupMode, setGroupMode] = useState('name'); // 'name' or 'members'
-  const [groupName, setGroupName] = useState('');
-  const [groupMembers, setGroupMembers] = useState(['', '']);
+  // Group (up to 4 members total, starting with 1)
+  const [groupMembers, setGroupMembers] = useState(['']);
 
-  // Key change stepper
+  // Key change stepper (-10 to +10, default 0)
   const [keyChange, setKeyChange] = useState(0);
 
-  // State
+  // Loading state
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   // Reset when sheet opens
   useEffect(() => {
@@ -72,42 +62,132 @@ const RequestSheet = ({ opened, song, onClose }) => {
       setPerfType('solo');
       setSoloName(savedSingerName || '');
       setDuetNames([savedSingerName || '', '']);
-      setGroupMode('name');
-      setGroupName('');
-      setGroupMembers(['', '']);
+      setGroupMembers([savedSingerName || '']);
       setKeyChange(0);
-      setSuccess(false);
       setLoading(false);
     }
   }, [opened, savedSingerName]);
 
-  const singerName = buildSingerName(perfType, soloName, duetNames, groupMode, groupName, groupMembers);
+  // Global F7 listeners to close the sheet if user navigates to a different page/tab
+  useEffect(() => {
+    if (!opened) return;
+
+    const handleClose = () => {
+      onClose();
+    };
+
+    if (f7) {
+      f7.on('routeChange', handleClose);
+      f7.on('tabShow', handleClose);
+      f7.on('popupOpen', handleClose);
+      f7.on('sheetOpen', (sheet) => {
+        // If another sheet is opened, close this one
+        if (sheet && sheet.el && !sheet.el.classList.contains('request-sheet')) {
+          handleClose();
+        }
+      });
+    }
+
+    return () => {
+      if (f7) {
+        f7.off('routeChange', handleClose);
+        f7.off('tabShow', handleClose);
+        f7.off('popupOpen', handleClose);
+      }
+    };
+  }, [opened, onClose]);
+
+  const singerName = buildSingerName(perfType, soloName, duetNames, groupMembers);
   const canSubmit = singerName.length > 0 && !loading;
 
   const handleSubmit = async () => {
     if (!canSubmit || !song) return;
 
-    // Persist solo name for convenience
-    if (perfType === 'solo' && soloName.trim()) {
-      store.dispatch('setSingerName', soloName.trim());
-    }
+    const nameToSave = (
+      perfType === 'solo'
+        ? soloName
+        : perfType === 'duet'
+        ? duetNames[0]
+        : groupMembers[0]
+    ).trim();
 
-    setLoading(true);
-    try {
-      const keyStr = keyChange > 0 ? `+${keyChange}` : String(keyChange);
-      const result = await submitRequest(venueUrlName, song.songId, singerName, keyStr);
+    const doSubmit = async () => {
+      setLoading(true);
+      try {
+        const keyStr = keyChange > 0 ? `+${keyChange}` : String(keyChange);
+        const result = await submitRequest(venueUrlName, song.songId, singerName, keyStr);
 
-      if (result.success) {
-        setSuccess(true);
-        setTimeout(() => onClose(), 2000);
-      } else {
-        f7.toast.create({ text: 'Request failed. Please try again.', position: 'center', closeTimeout: 2000 }).open();
+        if (result.success) {
+          onClose(); // Close the sheet immediately on submit success
+          f7.toast.create({
+            text: `Request for "${song.title}" submitted! 🎤`,
+            position: 'bottom',
+            closeTimeout: 2000,
+          }).open();
+        } else {
+          f7.toast.create({
+            text: result.error || 'Request failed. Please try again.',
+            position: 'bottom',
+            closeTimeout: 2000,
+          }).open();
+        }
+      } catch (err) {
+        console.error('Submit failed:', err);
+        f7.toast.create({
+          text: 'Network error. Please try again.',
+          position: 'bottom',
+          closeTimeout: 2000,
+        }).open();
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error('Submit failed:', err);
-      f7.toast.create({ text: 'Network error. Please try again.', position: 'center', closeTimeout: 2000 }).open();
-    } finally {
-      setLoading(false);
+    };
+
+    const neverPrompt = localStorage.getItem('vibe_never_prompt_name') === 'true';
+
+    if (!savedSingerName && !neverPrompt && nameToSave) {
+      f7.dialog.create({
+        title: 'Save Singer Name?',
+        text: `Would you like to save "${nameToSave}" as your default singer name for future requests?`,
+        content: `
+          <div class="dialog-checkbox-wrapper" style="margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: rgba(255, 255, 255, 0.75);">
+            <input type="checkbox" id="never-ask-checkbox" style="width: 16px; height: 16px; accent-color: var(--vibe-accent);" />
+            <label for="never-ask-checkbox" style="cursor: pointer; user-select: none;">Remember my choice and never ask again</label>
+          </div>
+        `,
+        buttons: [
+          {
+            text: 'No',
+            onClick: () => {
+              const checked = document.getElementById('never-ask-checkbox')?.checked;
+              if (checked) {
+                localStorage.setItem('vibe_never_prompt_name', 'true');
+                localStorage.setItem('vibe_should_save_name', 'false');
+              }
+              doSubmit();
+            }
+          },
+          {
+            text: 'Yes',
+            bold: true,
+            onClick: () => {
+              const checked = document.getElementById('never-ask-checkbox')?.checked;
+              if (checked) {
+                localStorage.setItem('vibe_never_prompt_name', 'true');
+                localStorage.setItem('vibe_should_save_name', 'true');
+              }
+              store.dispatch('setSingerName', nameToSave);
+              doSubmit();
+            }
+          }
+        ]
+      }).open();
+    } else {
+      // Auto-save if opted in and selected Yes previously
+      if (!savedSingerName && neverPrompt && localStorage.getItem('vibe_should_save_name') === 'true' && nameToSave) {
+        store.dispatch('setSingerName', nameToSave);
+      }
+      doSubmit();
     }
   };
 
@@ -124,13 +204,17 @@ const RequestSheet = ({ opened, song, onClose }) => {
     next[idx] = val;
     setGroupMembers(next);
   };
-  const addMember = () => setGroupMembers([...groupMembers, '']);
-  const removeMember = (idx) => {
-    if (groupMembers.length <= 2) return;
-    setGroupMembers(groupMembers.filter((_, i) => i !== idx));
+
+  const addMember = () => {
+    if (groupMembers.length < 4) {
+      setGroupMembers([...groupMembers, '']);
+    }
   };
 
-  if (!song) return null;
+  const removeMember = (idx) => {
+    if (groupMembers.length <= 1) return;
+    setGroupMembers(groupMembers.filter((_, i) => i !== idx));
+  };
 
   return (
     <Sheet
@@ -141,181 +225,151 @@ const RequestSheet = ({ opened, song, onClose }) => {
       closeByBackdropClick
       closeByOutsideClick
       swipeToClose
+      push
       style={{ height: 'auto', maxHeight: '90vh' }}
     >
       <div className="sheet-handle">
         <div className="sheet-handle-bar" />
       </div>
 
-      {success ? (
-        <div className="success-state">
-          <div className="success-checkmark">
-            <i className="f7-icons">checkmark</i>
-          </div>
-          <div className="success-title">You're in the queue!</div>
-          <div className="success-text">
-            "{song.title}" has been submitted.<br />
-            Get ready to sing! 🎤
-          </div>
+      <div className="request-sheet-header">
+        <div className="request-sheet-title">{song ? song.title : ''}</div>
+        <div className="request-sheet-subtitle">{song ? song.artist : ''}</div>
+      </div>
+
+      <div className="request-sheet-body">
+        {/* Performance Type Selector using F7 Segmented */}
+        <div className="perf-segmented-wrap">
+          <Segmented raised className="perf-type-segmented">
+            <Button
+              active={perfType === 'solo'}
+              onClick={() => setPerfType('solo')}
+            >
+              <i className="f7-icons">person_fill</i>
+              <span>Solo</span>
+            </Button>
+            <Button
+              active={perfType === 'duet'}
+              onClick={() => setPerfType('duet')}
+            >
+              <i className="f7-icons">person_2_fill</i>
+              <span>Duet</span>
+            </Button>
+            <Button
+              active={perfType === 'group'}
+              onClick={() => setPerfType('group')}
+            >
+              <i className="f7-icons">person_3_fill</i>
+              <span>Group</span>
+            </Button>
+          </Segmented>
         </div>
-      ) : (
-        <>
-          {/* Header — compact */}
-          <div className="request-sheet-header">
-            <div className="request-sheet-title">{song.title}</div>
-            <div className="request-sheet-subtitle">{song.artist}</div>
-          </div>
 
-          <div className="request-sheet-body">
-            {/* Performance Type Selector */}
-            <div className="perf-type-row">
-              {PERF_TYPES.map((p) => (
-                <button
-                  key={p.key}
-                  className={`perf-type-btn${perfType === p.key ? ' active' : ''}`}
-                  onClick={() => setPerfType(p.key)}
-                >
-                  <i className="f7-icons">{p.icon}</i>
-                  <span>{p.label}</span>
-                </button>
-              ))}
+        {/* Singer Name Inputs */}
+        <div className="singer-inputs-container">
+          {perfType === 'solo' && (
+            <input
+              className="form-input"
+              type="text"
+              placeholder="Your name"
+              value={soloName}
+              onChange={(e) => setSoloName(e.target.value)}
+              autoComplete="off"
+            />
+          )}
+
+          {perfType === 'duet' && (
+            <div className="duet-inputs-wrapper">
+              <input
+                className="form-input duet-input"
+                type="text"
+                placeholder="Singer 1"
+                value={duetNames[0]}
+                onChange={(e) => updateDuet(0, e.target.value)}
+                autoComplete="off"
+              />
+              <span className="duet-amp-inline">&</span>
+              <input
+                className="form-input duet-input"
+                type="text"
+                placeholder="Singer 2"
+                value={duetNames[1]}
+                onChange={(e) => updateDuet(1, e.target.value)}
+                autoComplete="off"
+              />
             </div>
+          )}
 
-            {/* Singer Name Inputs */}
-            <div className="singer-inputs">
-              {perfType === 'solo' && (
-                <input
-                  className="form-input"
-                  type="text"
-                  placeholder="Your name"
-                  value={soloName}
-                  onChange={(e) => setSoloName(e.target.value)}
-                  autoComplete="off"
-                />
-              )}
-
-              {perfType === 'duet' && (
-                <div className="duet-inputs">
+          {perfType === 'group' && (
+            <div className="group-inputs-list">
+              {groupMembers.map((member, idx) => (
+                <div key={idx} className="group-member-row">
                   <input
-                    className="form-input"
+                    className="form-input group-member-input"
                     type="text"
-                    placeholder="Singer 1"
-                    value={duetNames[0]}
-                    onChange={(e) => updateDuet(0, e.target.value)}
+                    placeholder={idx === 0 ? "Group Name (e.g. The Karaoke Crew)" : `Member ${idx + 1}`}
+                    value={member}
+                    onChange={(e) => updateMember(idx, e.target.value)}
                     autoComplete="off"
                   />
-                  <span className="duet-amp">&</span>
-                  <input
-                    className="form-input"
-                    type="text"
-                    placeholder="Singer 2"
-                    value={duetNames[1]}
-                    onChange={(e) => updateDuet(1, e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-              )}
-
-              {perfType === 'group' && (
-                <div className="group-inputs">
-                  {/* Toggle: group name vs individual */}
-                  <div className="group-mode-toggle">
+                  {idx > 0 ? (
                     <button
-                      className={`group-mode-btn${groupMode === 'name' ? ' active' : ''}`}
-                      onClick={() => setGroupMode('name')}
+                      type="button"
+                      className="group-member-remove-btn"
+                      onClick={() => removeMember(idx)}
                     >
-                      Group Name
+                      <i className="f7-icons">xmark_circle_fill</i>
                     </button>
-                    <button
-                      className={`group-mode-btn${groupMode === 'members' ? ' active' : ''}`}
-                      onClick={() => setGroupMode('members')}
-                    >
-                      Individual Names
-                    </button>
-                  </div>
-
-                  {groupMode === 'name' ? (
-                    <input
-                      className="form-input"
-                      type="text"
-                      placeholder="e.g. The Karaoke Crew"
-                      value={groupName}
-                      onChange={(e) => setGroupName(e.target.value)}
-                      autoComplete="off"
-                    />
                   ) : (
-                    <div className="group-member-list">
-                      {groupMembers.map((member, idx) => (
-                        <div key={idx} className="group-member-row">
-                          <input
-                            className="form-input"
-                            type="text"
-                            placeholder={`Singer ${idx + 1}`}
-                            value={member}
-                            onChange={(e) => updateMember(idx, e.target.value)}
-                            autoComplete="off"
-                          />
-                          {groupMembers.length > 2 && (
-                            <button
-                              className="member-remove-btn"
-                              onClick={() => removeMember(idx)}
-                            >
-                              <i className="f7-icons">minus_circle_fill</i>
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      <button className="member-add-btn" onClick={addMember}>
-                        <i className="f7-icons">plus_circle_fill</i>
-                        <span>Add Singer</span>
-                      </button>
-                    </div>
+                    <div className="group-member-remove-spacer" />
                   )}
                 </div>
+              ))}
+              {groupMembers.length < 4 && (
+                <button
+                  type="button"
+                  className="group-member-add-btn"
+                  onClick={addMember}
+                >
+                  <i className="f7-icons">plus_circle_fill</i>
+                  <span>Add Member ({groupMembers.length}/4)</span>
+                </button>
               )}
             </div>
+          )}
+        </div>
 
-            {/* Key Change Stepper + Submit — side by side */}
-            <div className="request-footer">
-              <div className="key-stepper">
-                <span className="key-stepper-label">Key</span>
-                <button
-                  className="stepper-btn"
-                  onClick={() => setKeyChange(Math.max(-6, keyChange - 1))}
-                  disabled={keyChange <= -6}
-                >
-                  <i className="f7-icons">minus</i>
-                </button>
-                <span className={`stepper-value${keyChange !== 0 ? ' changed' : ''}`}>
-                  {keyChange > 0 ? `+${keyChange}` : keyChange}
-                </span>
-                <button
-                  className="stepper-btn"
-                  onClick={() => setKeyChange(Math.min(6, keyChange + 1))}
-                  disabled={keyChange >= 6}
-                >
-                  <i className="f7-icons">plus</i>
-                </button>
-              </div>
-
-              <button
-                className="submit-btn"
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-              >
-                {loading ? (
-                  <Preloader />
-                ) : (
-                  <>
-                    <i className="f7-icons" style={{ fontSize: '16px' }}>paperplane_fill</i>
-                    Submit
-                  </>
-                )}
-              </button>
-            </div>
+        {/* Stepper + Submit — side by side */}
+        <div className="request-footer-row">
+          <div className="key-change-stepper-control">
+            <span className="key-change-label">Key:</span>
+            <Stepper
+              min={-10}
+              max={10}
+              value={keyChange}
+              onStepperChange={setKeyChange}
+              fill
+              small
+              raised
+            />
           </div>
-        </>
-      )}
+
+          <button
+            className="submit-request-btn"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+          >
+            {loading ? (
+              <Preloader size={20} color="white" />
+            ) : (
+              <>
+                <i className="f7-icons">paperplane_fill</i>
+                <span>Submit</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </Sheet>
   );
 };
